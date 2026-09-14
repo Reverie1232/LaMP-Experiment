@@ -86,7 +86,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser("MAE pre-training", add_help=False)
     parser.add_argument(
         "--batch_size",
-        default=16,
+        default=1,
         type=int,
         help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus",
     )
@@ -101,8 +101,8 @@ def get_args_parser():
     )
 
     # Model parameters
-    parser.add_argument("--llama_model_path", default="/afs/crc.nd.edu/user/z/ztan3/.llama/checkpoints/Llama-2-7b", type=str, help="path of llama model")
-    parser.add_argument("--tokenizer_path", default="/afs/crc.nd.edu/user/z/ztan3/.llama/checkpoints/Llama-2-7b", type=str, help="path of llama model tokenizer")
+    parser.add_argument("--llama_model_path", default="/disk/eyzhang/.cache/modelscope/hub/models/shakechen/Llama-2-7b", type=str, help="path of llama model")
+    parser.add_argument("--tokenizer_path", default="/disk/eyzhang/.cache/modelscope/hub/models/shakechen/Llama-2-7b", type=str, help="path of llama model tokenizer")
     
     parser.add_argument("--model", default="llama7B_lora", type=str, metavar="MODEL", help="Name of model to train")
 
@@ -127,22 +127,22 @@ def get_args_parser():
         "--min_lr", type=float, default=0.0, metavar="LR", help="lower lr bound for cyclic schedulers that hit 0"
     )
 
-    parser.add_argument("--task_name", default="movie_tagging", type=str, metavar="MODEL", help="name of the task")
+    parser.add_argument("--task_name", default="news_headline", type=str, metavar="MODEL", help="name of the task")
 
     # Dataset parameters
     # parser.add_argument("--test_data_path", default="/afs/crc.nd.edu/user/z/ztan3/Private/LoRA-composition/LaMP_data-final/movie/test_100/user_test_100.json", type=str, help="dataset path")
     # parser.add_argument("--train_data_path", default="/afs/crc.nd.edu/user/z/ztan3/Private/LoRA-composition/LaMP_data-final/movie/user_base_LLM.json", type=str, help="dataset path")
     
-    parser.add_argument("--output_dir", default="./output/movie_tagging/LoRA-Composition", help="path where to save, empty for no saving")
+    parser.add_argument("--output_dir", default="./output/news_headline/LoRA-Composition", help="path where to save, empty for no saving")
 
     parser.add_argument("--log_dir", default="./output", help="path where to tensorboard log")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
-    parser.add_argument("--lora_ckpt", default='./output/movie_tagging/task-base_LLM/lora_ckpt.pt', help="resume lora from checkpoint")
+    parser.add_argument("--lora_ckpt", default='./output/news_headline/task-base_LLM/lora_ckpt.pt', help="resume lora from checkpoint")
     parser.add_argument("--grad_ckpt", type=bool, default=True, help="whether to use gradient checkpoint, recommend TRUE!!")
 
-    parser.add_argument("--gate_dir", default='./output/movie_tagging/Anchor_PEFT/gate', help="resume lora from checkpoint")
-    parser.add_argument("--anchor_dir", default='./output/movie_tagging/Anchor_PEFT/LoRA', help="resume lora from checkpoint")
+    parser.add_argument("--gate_dir", default='./output/news_headline/Anchor_PEFT/gate', help="resume lora from checkpoint")
+    parser.add_argument("--anchor_dir", default='./output/news_headline/Anchor_PEFT/LoRA', help="resume lora from checkpoint")
     parser.add_argument("--test_idx_dir", default='./anchor_selection/history_avg/anchor_user_idx.pt', help="resume lora from checkpoint")
 
     # parser.add_argument("--test_dir", default='/afs/crc.nd.edu/user/z/ztan3/Private/LoRA-composition/LaMP_data-final/movie/test_100/user_test_100.json', help="resume lora from checkpoint")
@@ -164,7 +164,7 @@ def get_args_parser():
     parser.add_argument("--temperature", type=float, default=0.1, help="temperature")
     parser.add_argument("--max_gen_len", type=int, default=10, help="top_p")
 
-    parser.add_argument("--k_list", type=list, default=[1,2,4], help="top_p")
+    parser.add_argument("--k_list", type=list, default=[1], help="top_p")
     parser.add_argument('--infer', default=False, action=argparse.BooleanOptionalAction)
 
 
@@ -209,20 +209,25 @@ def process_train_data(user, k_list=[1,2,4], recent_k=50):
         extract_article = extract_news_headline
         format_flag = True
     elif args.task_name == "product_rating":
-        extract_article = extrat_product_review
+        extract_article = extract_product_review
         format_flag = True
     elif args.task_name == "scholarly_title":
         extract_article = extract_scholarly_title
         format_flag = True
     elif args.task_name == "tweet_paraphrase":
-        extract_article = extrat_tweet_paraphrasing
+        extract_article = extract_tweet_paraphrasing
 
     user_profile = all_profile[str(user['user_id'])]
 
     # for k in k_list:
     for idx, q in enumerate(user['profile'][-args.recent_k:]):
         for key, value in q.items():
-            q[key] = get_first_k_tokens(q[key], 768)
+            if isinstance(value, str):
+                q[key] = get_first_k_tokens(q[key], 768)
+            else:
+                q[key] = str(q[key])
+
+            # q[key] = get_first_k_tokens(q[key], 768)
 
         prompt = prompt_template[args.task_name]['OPPU_input'].format(**q)
         full_prompt = prompt_template[args.task_name]['OPPU_full'].format(**q)
@@ -234,7 +239,12 @@ def process_train_data(user, k_list=[1,2,4], recent_k=50):
 
             for p in visible_history_list:
                 for key, value in p.items():
-                    p[key] = get_first_k_tokens(p[key], 368)
+                    if isinstance(value, str):
+                        p[key] = get_first_k_tokens(p[key], 368)
+                    else:
+                        p[key] = str(p[key])
+
+                    # p[key] = get_first_k_tokens(p[key], 368)
 
 
             history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
@@ -262,7 +272,11 @@ def process_train_data(user, k_list=[1,2,4], recent_k=50):
 
     for q in user['profile'][-args.recent_k:]:
         for key, value in q.items():
-            q[key] = get_first_k_tokens(q[key], 768)
+            if isinstance(value, str):
+                q[key] = get_first_k_tokens(q[key], 768)
+            else:
+                q[key] = str(q[key])
+            # q[key] = get_first_k_tokens(q[key], 768)
 
         prompt = prompt_template[args.task_name]['OPPU_input'].format(**q)
         full_prompt = prompt_template[args.task_name]['OPPU_full'].format(**q)
@@ -290,11 +304,11 @@ def process_profile_test_data(user, batch_size, k_list):
     elif args.task_name == "news_headline":
         extract_article = extract_news_headline
     elif args.task_name == "product_rating":
-        extract_article = extrat_product_review
+        extract_article = extract_product_review
     elif args.task_name == "scholarly_title":
         extract_article = extract_scholarly_title
     elif args.task_name == "tweet_paraphrase":
-        extract_article = extrat_tweet_paraphrasing
+        extract_article = extract_tweet_paraphrasing
 
     with open('./prompt/prompt.json', 'r') as f:
         prompt_template = json.load(f)
@@ -328,7 +342,10 @@ def process_profile_test_data(user, batch_size, k_list):
     visible_history_list = user['profile']
     for p in visible_history_list:
         for key, value in p.items():
-            p[key] = get_first_k_tokens(p[key], 368)
+            if isinstance(value, str):
+                p[key] = get_first_k_tokens(p[key], 368)
+            else:
+                p[key] = str(p[key])
 
     history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
 
@@ -338,14 +355,25 @@ def process_profile_test_data(user, batch_size, k_list):
     for idx, k in enumerate(k_list):
         for q in user['query']:
             test_question = q['input']
-            test_article = extract_article(test_question)
+            if args.task_name == 'citation':
+                test_article = extract_citation_title(test_question)
+                option1 = extract_option(test_question, 1)
+                option2 = extract_option(test_question, 2)
+                tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article, option1, option2).split(" ")
+                test_prompt = prompt_template[args.task_name]['prompt'].format(test_article, option1, option2)
+            else:
+                test_article = extract_article(test_question)
+                tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+                test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
 
-            tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+            # test_article = extract_article(test_question)
+
+            # tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
             retrieved_history = bm25.get_top_n(tokenized_query, history_list, n=k)
         
             history_string = "".join(retrieved_history)
 
-            test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
+            # test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
             test_prompt = f'### User History:\n{history_string}\n\n' + test_prompt
 
             test_prompt = f'### User Profile:\n{user_profile}\n\n' + test_prompt
@@ -379,11 +407,11 @@ def process_test_data(user, batch_size, k_list):
     elif args.task_name == "news_headline":
         extract_article = extract_news_headline
     elif args.task_name == "product_rating":
-        extract_article = extrat_product_review
+        extract_article = extract_product_review
     elif args.task_name == "scholarly_title":
         extract_article = extract_scholarly_title
     elif args.task_name == "tweet_paraphrase":
-        extract_article = extrat_tweet_paraphrasing
+        extract_article = extract_tweet_paraphrasing
 
     with open('./prompt/prompt.json', 'r') as f:
         prompt_template = json.load(f)
@@ -418,7 +446,10 @@ def process_test_data(user, batch_size, k_list):
     visible_history_list = user['profile']
     for p in visible_history_list:
         for key, value in p.items():
-            p[key] = get_first_k_tokens(p[key], 368)
+            if isinstance(value, str):
+                p[key] = get_first_k_tokens(p[key], 368)
+            else:
+                p[key] = str(p[key])
 
     history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
 
@@ -428,14 +459,25 @@ def process_test_data(user, batch_size, k_list):
     for idx, k in enumerate(k_list):
         for q in user['query']:
             test_question = q['input']
-            test_article = extract_article(test_question)
+            if args.task_name == 'citation':
+                test_article = extract_citation_title(test_question)
+                option1 = extract_option(test_question, 1)
+                option2 = extract_option(test_question, 2)
+                tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article, option1, option2).split(" ")
+                test_prompt = prompt_template[args.task_name]['prompt'].format(test_article, option1, option2)
+            else:
+                test_article = extract_article(test_question)
+                tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+                test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
 
-            tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+            # test_article = extract_article(test_question)
+
+            # tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
             retrieved_history = bm25.get_top_n(tokenized_query, history_list, n=k)
         
             history_string = "".join(retrieved_history)
 
-            test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
+            # test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
             test_prompt = f'### User History:\n{history_string}\n\n' + test_prompt
 
             # test_prompt = f'### User Profile:\n{user_profile}\n\n' + test_prompt
@@ -683,4 +725,5 @@ if __name__ == "__main__":
     # args = args.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+        
     main(args)

@@ -3,10 +3,10 @@ import zipfile
 import glob
 import os
 import shutil
-
+from sklearn.metrics import f1_score, accuracy_score
 import os
 
-os.environ['HF_EVALUATE_OFFLINE'] = '1'
+# os.environ['HF_EVALUATE_OFFLINE'] = '1'
 
 import evaluate
 
@@ -22,7 +22,7 @@ def postprocess_text_generation(preds, labels):
     return preds, labels
 
 def create_metric_f1_accuracy(all_labels):
-    f1_metric = evaluate.load("f1")
+    f1_metric = evaluate.load("f1", cache_dir=None)
     accuracy_metric = evaluate.load("accuracy")
     def create_mapping(x):
         try:

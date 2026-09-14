@@ -47,8 +47,8 @@ def extract_article(text):
     return extracted_string
 
 parser = argparse.ArgumentParser("MAE pre-training", add_help=False)
-parser.add_argument("--candidate_path", default="../data/movie_tagging/user_anchor_candidate.json", type=str, help="path to candidate user json file")
-parser.add_argument("--task_name", default="movie_tagging", type=str, metavar="MODEL", help="name of the task")
+parser.add_argument("--candidate_path", default="../data/scholarly_title/user_anchor_candidate.json", type=str, help="path to candidate user json file")
+parser.add_argument("--task_name", default="scholarly_title", type=str, metavar="MODEL", help="name of the task")
 parser.add_argument("--k", default=50, type=int,help="number of selected anchor user")
 
 args = parser.parse_args()
@@ -73,13 +73,17 @@ for user in tqdm(anchor_candidate):
     visible_history_list = user['profile']
     for p in visible_history_list:
         for key, value in p.items():
-            p[key] = get_first_k_tokens(p[key], 368)
+            if isinstance(value, str):
+                p[key] = get_first_k_tokens(p[key], 368)
+            else:
+                p[key] = str(p[key])
+            # p[key] = get_first_k_tokens(p[key], 368)
 
     user_nl_history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
 
     user_nl_history_list_batched = split_batch(user_nl_history_list, batch_size)
 
-    for batch in tqdm(user_nl_history_list_batched):
+    for batch in user_nl_history_list_batched:
 
         with torch.no_grad():
             inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=512).to(model.device)

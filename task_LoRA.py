@@ -80,7 +80,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser("MAE pre-training", add_help=False)
     parser.add_argument(
         "--batch_size",
-        default=6,
+        default=1,
         type=int,
         help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus",
     )
@@ -95,12 +95,12 @@ def get_args_parser():
     )
 
     # Model parameters
-    parser.add_argument("--llama_model_path", default="/afs/crc.nd.edu/user/z/ztan3/.llama/checkpoints/Llama-2-7b", type=str, help="path of llama model")
-    parser.add_argument("--tokenizer_path", default="/afs/crc.nd.edu/user/z/ztan3/.llama/checkpoints/Llama-2-7b", type=str, help="path of llama model tokenizer")
+    parser.add_argument("--llama_model_path", default="/disk/eyzhang/.cache/modelscope/hub/models/shakechen/Llama-2-7b", type=str, help="path of llama model")
+    parser.add_argument("--tokenizer_path", default="/disk/eyzhang/.cache/modelscope/hub/models/shakechen/Llama-2-7b", type=str, help="path of llama model tokenizer")
     
-    parser.add_argument("--task_name", default="movie_tagging", type=str, metavar="MODEL", help="name of the task")
+    parser.add_argument("--task_name", default="news_headline", type=str, metavar="MODEL", help="name of the task")
 
-    parser.add_argument("--max_seq_len", type=int, default=3000, metavar="LENGTH", help="the maximum sequence length")
+    parser.add_argument("--max_seq_len", type=int, default=5000, metavar="LENGTH", help="the maximum sequence length")
     
     parser.add_argument("--w_lora", type=bool, default=True, help="use lora or not")
 
@@ -124,7 +124,7 @@ def get_args_parser():
     parser.add_argument("--log_dir", default="./output", help="path where to tensorboard log")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
-    parser.add_argument("--lora_ckpt", default=None, help="resume lora from checkpoint")
+    parser.add_argument("--lora_ckpt", default='./output/news_headline/task-base_LLM/lora_ckpt.pt', help="resume lora from checkpoint")
     parser.add_argument("--grad_ckpt", type=bool, default=True, help="whether to user gradient checkpoint, recommend TRUE!!")
 
     parser.add_argument(
@@ -141,7 +141,7 @@ def get_args_parser():
     parser.add_argument("--temperature", type=float, default=0.1, help="temperature")
     parser.add_argument("--max_gen_len", type=int, default=10, help="top_p")
 
-    parser.add_argument("--k_list", type=list, default=[1,2,4], help="top_p")
+    parser.add_argument("--k_list", type=list, default=[1], help="top_p")
     parser.add_argument('--infer', default=False, action=argparse.BooleanOptionalAction)
 
     return parser
@@ -157,6 +157,21 @@ import random
 with open(f'./data/{args.task_name}/profile-id2text.json', 'r') as f:
     all_profile = json.load(f)
 
+# with open(f'./data/{args.task_name}/profile-id2text_test.json', 'r') as f:
+#     all_profile = json.load(f)
+
+
+# with open(f'./history_selector/{args.task_name}/profile-id2text_test111.json', 'r') as f:
+#     all_profile = json.load(f)
+
+
+
+# cluster_profile = {}
+
+# for item in cluster_profile_list:
+#     key = (item["user_id"], item["query_id"])
+#     cluster_profile[key] = item["profile"]
+
 def process_train_data(data, args, k=1):
 
     train_data = []
@@ -167,11 +182,11 @@ def process_train_data(data, args, k=1):
     elif args.task_name == "news_headline":
         extract_article = extract_news_headline
     elif args.task_name == "product_rating":
-        extract_article = extrat_product_review
+        extract_article = extract_product_review
     elif args.task_name == "scholarly_title":
         extract_article = extract_scholarly_title
     elif args.task_name == "tweet_paraphrase":
-        extract_article = extrat_tweet_paraphrasing
+        extract_article = extract_tweet_paraphrasing
     
     with open('./prompt/prompt.json', 'r') as f:
         prompt_template = json.load(f)
@@ -180,7 +195,7 @@ def process_train_data(data, args, k=1):
     for i in tqdm(range(len(data))):
         
         user_profile = all_profile[str(data[i]['user_id'])]
-
+        # user_profile = new_profile[str(data[i]['user_id'])]
         # if k > 0:
         for idx, q in enumerate(data[i]['query']):
             # k = random.sample([1,2,4], 1)[0]
@@ -203,7 +218,11 @@ def process_train_data(data, args, k=1):
 
             for p in visible_history_list:
                 for key, value in p.items():
-                    p[key] = get_first_k_tokens(p[key], 368)
+                    # p[key] = get_first_k_tokens(p[key], 368)
+                    if isinstance(value, str):
+                        p[key] = get_first_k_tokens(value, 368)
+                    else:
+                        p[key] = str(value)
 
             history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
             tokenized_corpus = [doc.split(" ") for doc in history_list]
@@ -225,7 +244,7 @@ def process_train_data(data, args, k=1):
                     "full_prompt": full_prompt
                 }
             )
-
+    print(f"Train data example: {train_data[0]}")
     return train_data
 
 
@@ -243,18 +262,21 @@ def process_profile_test_data(data, batch_size, k_list, args):
     elif args.task_name == "news_headline":
         extract_article = extract_news_headline
     elif args.task_name == "product_rating":
-        extract_article = extrat_product_review
+        extract_article = extract_product_review
     elif args.task_name == "scholarly_title":
         extract_article = extract_scholarly_title
     elif args.task_name == "tweet_paraphrase":
-        extract_article = extrat_tweet_paraphrasing
+        extract_article = extract_tweet_paraphrasing
 
     with open('./prompt/prompt.json', 'r') as f:
         prompt_template = json.load(f)
         
     for user in data:
         user_profile = all_profile[str(user['user_id'])]
+        # user_profile = new_profile[str(user['user_id'])]
+        # print(f"User {user['user_id']} Profile: {user_profile}")
         # if k==0:
+        
         for q in user['query']:
 
             if args.task_name == 'citation':
@@ -262,6 +284,7 @@ def process_profile_test_data(data, batch_size, k_list, args):
                 test_article = extract_citation_title(test_question)
                 option1, option2 = extract_option(test_question, 1), extract_option(test_question, 2)
                 test_prompt = prompt_template[args.task_name]['prompt'].format(test_article, option1, option2)
+
             else:
                 test_question = q['input']
                 test_article = extract_article(test_question)
@@ -282,7 +305,10 @@ def process_profile_test_data(data, batch_size, k_list, args):
         visible_history_list = user['profile']
         for p in visible_history_list:
             for key, value in p.items():
-                p[key] = get_first_k_tokens(p[key], 368)
+                if isinstance(value, str):
+                    p[key] = get_first_k_tokens(value, 368)
+                else:
+                    p[key] = str(value)
 
         history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
 
@@ -291,15 +317,35 @@ def process_profile_test_data(data, batch_size, k_list, args):
 
         for idx, k in enumerate(k_list):
             for q in user['query']:
-                test_question = q['input']
-                test_article = extract_article(test_question)
 
-                tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+                test_question = q['input']
+
+                user_id = user['user_id']
+                query_id = q['id']
+                key = (user_id, query_id)
+                # user_profile = cluster_profile[key]
+
+                # print(f"User {user_id} Query {query_id} Profile: {user_profile}")
+                if args.task_name == 'citation':
+                    test_article = extract_citation_title(test_question)
+                    option1 = extract_option(test_question, 1)
+                    option2 = extract_option(test_question, 2)
+                    tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article, option1, option2).split(" ")
+                    test_prompt = prompt_template[args.task_name]['prompt'].format(test_article, option1, option2)
+                else:
+                    test_article = extract_article(test_question)
+                    tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+                    test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
+                    
+                # test_article = extract_article(test_question)
+
+                # tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+                
                 retrieved_history = bm25.get_top_n(tokenized_query, history_list, n=k)
             
                 history_string = "".join(retrieved_history)
 
-                test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
+                # test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
                 test_prompt = f'### User History:\n{history_string}\n\n' + test_prompt
 
                 test_prompt = f'### User Profile:\n{user_profile}\n\n' + test_prompt
@@ -333,17 +379,18 @@ def process_test_data(data, batch_size, k_list, args):
     elif args.task_name == "news_headline":
         extract_article = extract_news_headline
     elif args.task_name == "product_rating":
-        extract_article = extrat_product_review
+        extract_article = extract_product_review
     elif args.task_name == "scholarly_title":
         extract_article = extract_scholarly_title
     elif args.task_name == "tweet_paraphrase":
-        extract_article = extrat_tweet_paraphrasing
+        extract_article = extract_tweet_paraphrasing
 
     with open('./prompt/prompt.json', 'r') as f:
         prompt_template = json.load(f)
         
     for user in data:
         user_profile = all_profile[str(user['user_id'])]
+        # user_profile = new_profile[str(user['user_id'])]
         # if k==0:
         for q in user['query']:
 
@@ -372,7 +419,11 @@ def process_test_data(data, batch_size, k_list, args):
         visible_history_list = user['profile']
         for p in visible_history_list:
             for key, value in p.items():
-                p[key] = get_first_k_tokens(p[key], 368)
+                if isinstance(value, str):
+                    p[key] = get_first_k_tokens(value, 368)
+                else:
+                    p[key] = str(value)
+                # p[key] = get_first_k_tokens(p[key], 368)
 
         history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
 
@@ -382,14 +433,25 @@ def process_test_data(data, batch_size, k_list, args):
         for idx, k in enumerate(k_list):
             for q in user['query']:
                 test_question = q['input']
-                test_article = extract_article(test_question)
+                if args.task_name == 'citation':
+                    test_article = extract_citation_title(test_question)
+                    option1 = extract_option(test_question, 1)
+                    option2 = extract_option(test_question, 2)
+                    tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article, option1, option2).split(" ")
+                    test_prompt = prompt_template[args.task_name]['prompt'].format(test_article, option1, option2)
+                else:
+                    test_article = extract_article(test_question)
+                    tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+                    test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
 
-                tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
+                # test_article = extract_article(test_question)
+
+                # tokenized_query = prompt_template[args.task_name]['retrieval_query_wokey'].format(test_article).split(" ")
                 retrieved_history = bm25.get_top_n(tokenized_query, history_list, n=k)
             
                 history_string = "".join(retrieved_history)
 
-                test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
+                # test_prompt = prompt_template[args.task_name]['prompt'].format(test_article)
                 test_prompt = f'### User History:\n{history_string}\n\n' + test_prompt
 
                 # test_prompt = f'### User Profile:\n{user_profile}\n\n' + test_prompt
@@ -528,13 +590,14 @@ def main(args):
     name_list = ['NP'] + args.k_list
 
     for idx, setting in enumerate(test_batch_list):
+        print(f"Start inference for setting {name_list[idx]} with {len(setting)} batches")
         all_results = []
         pred_all = []
         with torch.no_grad():
             for batch in tqdm(setting):
                 results = generator.generate(batch, max_gen_len=args.max_gen_len, temperature=args.temperature, top_p=args.top_p)
                 all_results += results
-                print(results)
+                # print(results)
             
         for i in range(len(all_results)):
             output = all_results[i].replace(test_question_list[idx][i], "")
@@ -547,22 +610,26 @@ def main(args):
             'task': name2taskid[args.task_name],
             'golds': pred_all,
         }
-            
+        
+        os.makedirs(os.path.join(out_dir, "output"), exist_ok=True)
+
         with open(os.path.join(out_dir, './output/output-task-k{}.json'.format(name_list[idx])), 'w') as f:
             json.dump(output_file, f, indent=4)
 
 
     test_batch_list, test_id_list, test_question_list = process_profile_test_data(test_data, batch_size=args.batch_size, k_list=args.k_list, args=args)
     name_list = ['NP'] + args.k_list
-
+    # name_list = args.k_list
     for idx, setting in enumerate(test_batch_list):
+        print(f"Start inference for setting {name_list[idx]} with {len(setting)} batches")
         all_results = []
         pred_all = []
         with torch.no_grad():
             for batch in tqdm(setting):
+                # print(batch)
                 results = generator.generate(batch, max_gen_len=args.max_gen_len, temperature=args.temperature, top_p=args.top_p)
                 all_results += results
-                print(results)
+                # print(results)
             
         for i in range(len(all_results)):
             output = all_results[i].replace(test_question_list[idx][i], "")
@@ -576,8 +643,10 @@ def main(args):
             'golds': pred_all,
         }
             
-        with open(os.path.join(out_dir, './output/output-task-k{}.json'.format(name_list[idx])), 'w') as f:
+        with open(os.path.join(out_dir, './output/output-task-profile-k{}.json'.format(name_list[idx])), 'w') as f:
             json.dump(output_file, f, indent=4)
+
+        print(f"Saved inference results to {os.path.join(out_dir, './output/output-task-profile-k{}.json'.format(name_list[idx]))}")
 
     
 if __name__ == "__main__":

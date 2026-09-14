@@ -1,0 +1,36 @@
+{
+    "movie_tagging": {
+        "profile_prompt": "Generate a targeted user profile for movie genre tagging based on the provided user history. Focus on how the user interprets movie content, narrative structures, themes, emotional tone, pacing, and stylistic elements when assigning genre tags. Describe behavioral patterns, genre attribution tendencies, decision-making criteria, and consistency patterns. Do not mention specific movies, genres, keywords, or content examples. User History: {} Answer:",
+        "retrieval_history": "description: {description} tag: {tag}"
+    },
+
+    "citation": {
+        "profile_prompt": "Generate a targeted user profile for academic citation recommendation based on the provided publication history. Focus on how the researcher selects research directions, frames contributions, positions work relative to prior literature, develops scholarly interests, and evaluates relevance. Describe behavioral tendencies, research style, methodological preferences, and decision-making patterns that would help predict future citation choices. Do not mention specific papers, research topics, keywords, or content examples. User History: {} Answer:",
+        "retrieval_history": "paper title: {title} reference: {citation}"
+    },
+
+    "news_categorize": {
+        "profile_prompt": "Generate a targeted user profile for news category identification based on the provided article history. Focus on how the journalist approaches reporting, frames stories, emphasizes information, and maintains consistency in categorization-related writing patterns. Describe behavioral tendencies, editorial preferences, and content organization styles without mentioning specific articles, categories, topics, or entities. User History: {} Answer:",
+        "retrieval_history": "article: {text} category: {category}"
+    },
+
+    "news_headline": {
+        "profile_prompt": "Generate a targeted user profile for news headline generation based on the author's previous articles and headlines. Focus on how the author selects salient information, balances informativeness and engagement, structures headlines, and adapts wording for different contexts. Describe stylistic tendencies, phrasing preferences, emphasis patterns, and headline construction strategies. Do not mention specific articles, events, entities, or topics. User History: {} Answer:",
+        "retrieval_history": "article: {text} headline: {title}"
+    },
+
+    "product_rating": {
+        "profile_prompt": "Generate a targeted user profile for product review rating prediction based on the user's review history. Focus on how the user evaluates products, what factors influence satisfaction or dissatisfaction, how strict or lenient ratings tend to be, and how strengths and weaknesses are balanced when assigning scores. Describe decision-making criteria, evaluation consistency, behavioral preferences, and rating tendencies. Do not mention specific products, brands, keywords, or review content. User History: {} Answer:",
+        "retrieval_history": "review: {text} score: {score}"
+    },
+
+    "scholarly_title": {
+        "profile_prompt": "Generate a targeted user profile for academic title generation based on the author's publication history. Focus on how the author presents contributions, balances specificity and conciseness, highlights novelty, and structures academic titles. Describe recurring stylistic patterns, wording preferences, title construction strategies, and communication tendencies. Do not mention specific papers, research topics, keywords, or content examples. User History: {} Answer:",
+        "retrieval_history": "abstract: {abstract} title: {title}"
+    },
+
+    "tweet_paraphrase": {
+        "profile_prompt": "Generate a targeted user profile for tweet paraphrasing based on the user's previous tweets. Focus on communication style, tone, phrasing habits, emotional expression, humor usage, punctuation preferences, emphasis patterns, and personal voice characteristics. Describe behavioral tendencies and stylistic patterns that would help reproduce the user's writing style while preserving meaning. Do not mention specific tweets, topics, keywords, or entities. User History: {} Answer:",
+        "retrieval_history": "tweet: {text}"
+    }
+}

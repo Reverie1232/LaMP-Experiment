@@ -1230,8 +1230,49 @@ class Transformer(nn.Module):
         #         param.data = data
             
             
+    def load_group_content_lora(self, lora_path):
+        lora_state = torch.load(lora_path, map_location='cpu')
+
+        for key, value in lora_state.items():
+            param = self.get_parameter(key)
+            # print(f"key: {key}, param class: {param.__class__}")
+            if param is None:
+                print(f"missing {key}")
+                continue
+
+            param.data.copy_(value.cuda())
+
+
+    def load_group_content_lora_merge(self, loras):
+        total_weight = sum(item["weight"] for item in loras)
+        lora_states = []
+        for item in loras:
+            state = torch.load(item["path"], map_location="cpu")
+            weight = item["weight"] / total_weight
+            lora_states.append((state, weight))
+        keys = lora_states[0][0].keys()
+        for key in keys:
+            param = self.get_parameter(key)
+            if param is None:
+                print(f"missing {key}")
+                continue
+            merged = torch.zeros_like(lora_states[0][0][key])
+            for state, weight in lora_states:
+                merged.add_(state[key], alpha=weight)
                 
+            param.data.copy_(merged.to(param.device))
+
+    def load_oppu_lora(self, lora_path):
+        lora_state = torch.load(lora_path, map_location='cpu')
+
+        for key, value in lora_state.items():
+            param = self.get_parameter(key)
+            # print(f"key: {key}, param class: {param.__class__}")
+            if param is None:
+                print(f"missing {key}")
+                continue
                 
+            param.data.copy_(value.to(param.device))
 
 
 

@@ -1,7 +1,7 @@
 
 import torch
 import torch.nn as nn
-import bitsandbytes as bnb
+# import bitsandbytes as bnb
 from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM
 from transformers import pipeline, BitsAndBytesConfig
 import argparse
@@ -17,7 +17,7 @@ parser.add_argument('--model_name', type=str, default='mistralai/Mistral-7B-Inst
 parser.add_argument('--batch_size', type=int, default=3)
 parser.add_argument('--k', type=int, default=10)
 parser.add_argument('--cut_off', type=int, default=2048)
-parser.add_argument('--task_name', type=str, default='movie_tagging')
+parser.add_argument('--task_name', type=str, default='citation')
 
 args = parser.parse_args()
 model_name = args.model_name
@@ -73,19 +73,20 @@ base_model.config.eos_token_id = tokenizer.eos_token_id
 base_model.config.bos_token_id = tokenizer.bos_token_id
 
 
-with open(f"./data/{args.task_name}/user_base_LLM.json", 'r') as f:
-    train_data = json.load(f)
+# with open(f"./data/{args.task_name}/user_base_LLM.json", 'r') as f:
+#     train_data = json.load(f)
 
 with open(f"./data/{args.task_name}/test_100/user_test_100.json", 'r') as f:
     test_data = json.load(f)
 
-with open(f"./data/{args.task_name}/user_anchor_candidate.json", 'r') as f:
-    anchor_data = json.load(f)
+# with open(f"./data/{args.task_name}/user_anchor_candidate.json", 'r') as f:
+#     anchor_data = json.load(f)
 
-with open(f"./data/{args.task_name}/user_reserve_10_percent.json", 'r') as f:
-    reserve_data = json.load(f)
+# with open(f"./data/{args.task_name}/user_reserve_10_percent.json", 'r') as f:
+#     reserve_data = json.load(f)
 
-data = train_data + test_data + anchor_data + reserve_data
+# data = train_data + test_data + anchor_data + reserve_data
+data = test_data
 with open('./prompt/prompt_profile.json', 'r') as f:
     prompt_template = json.load(f)
 
@@ -110,7 +111,11 @@ for user in tqdm(data):
     
     for p in profiles:
         for key, value in p.items():
-            p[key] = get_first_k_tokens(p[key], 200)
+            if isinstance(value, str):
+                p[key] = get_first_k_tokens(p[key], 200)
+            else:
+                p[key] = str(p[key]) 
+            # p[key] = get_first_k_tokens(p[key], 200)
 
     for p in profiles:
         history_list.append(prompt_template[args.task_name]['retrieval_history'].format(**p))
@@ -163,5 +168,5 @@ for i in range(len(out_list_others)):
     
     all_out[userid_list_others[i]] = output
 
-with open(f'./data/{args.task_name}/profile-id2text.json', 'w') as f:
+with open(f'./data/{args.task_name}/profile-id2text_test.json', 'w') as f:
     json.dump(all_out, f)

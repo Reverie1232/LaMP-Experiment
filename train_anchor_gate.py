@@ -84,12 +84,12 @@ def get_args_parser():
     parser = argparse.ArgumentParser("MAE pre-training", add_help=False)
     parser.add_argument(
         "--batch_size",
-        default=6,
+        default=4,
         type=int,
         help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus",
     )
     parser.add_argument("--epochs", default=2, type=int)
-    parser.add_argument("--max_step", default=200, type=int)
+    parser.add_argument("--max_step", default=50, type=int)
     parser.add_argument("--warmup_epochs", default=0, type=int)
 
     parser.add_argument(
@@ -100,8 +100,8 @@ def get_args_parser():
     )
 
     # Model parameters
-    parser.add_argument("--llama_model_path", default="/afs/crc.nd.edu/user/z/ztan3/.llama/checkpoints/Llama-2-7b", type=str, help="path of llama model")
-    parser.add_argument("--tokenizer_path", default="/afs/crc.nd.edu/user/z/ztan3/.llama/checkpoints/Llama-2-7b", type=str, help="path of llama model tokenizer")
+    parser.add_argument("--llama_model_path", default="/disk/eyzhang/.cache/modelscope/hub/models/shakechen/Llama-2-7b", type=str, help="path of llama model")
+    parser.add_argument("--tokenizer_path", default="/disk/eyzhang/.cache/modelscope/hub/models/shakechen/Llama-2-7b", type=str, help="path of llama model tokenizer")
 
     parser.add_argument("--model", default="llama7B_lora", type=str, metavar="MODEL", help="Name of model to train")
 
@@ -126,23 +126,23 @@ def get_args_parser():
         "--min_lr", type=float, default=0.0, metavar="LR", help="lower lr bound for cyclic schedulers that hit 0"
     )
 
-    parser.add_argument("--task_name", default="movie_tagging", type=str, metavar="MODEL", help="name of the task")
+    parser.add_argument("--task_name", default="scholarly_title", type=str, metavar="MODEL", help="name of the task")
 
 
     # Dataset parameters
     # parser.add_argument("--test_data_path", default="/afs/crc.nd.edu/user/z/ztan3/Private/LoRA-composition/LaMP_data-final/movie/user_anchor_candidate.json", type=str, help="dataset path")
     
-    parser.add_argument("--output_dir", default="./output/movie_tagging/Anchor_PEFT/gate", help="path where to save, empty for no saving")
+    parser.add_argument("--output_dir", default="./output/scholarly_title/Anchor_PEFT/gate", help="path where to save, empty for no saving")
 
     parser.add_argument("--log_dir", default="./output", help="path where to tensorboard log")
     parser.add_argument("--device", default="cuda", help="device to use for training / testing")
     parser.add_argument("--seed", default=0, type=int)
-    parser.add_argument("--lora_ckpt", default='./output/movie_tagging/task-base_LLM/lora_ckpt.pt', help="resume lora from checkpoint")
+    parser.add_argument("--lora_ckpt", default='./output/scholarly_title/task-base_LLM/lora_ckpt.pt', help="resume lora from checkpoint")
     parser.add_argument("--grad_ckpt", type=bool, default=True, help="whether to user gradient checkpoint, recommend TRUE!!")
     parser.add_argument("--w_gate", type=bool, default=True, help="whether to user gate, recommend TRUE!!")
     
-    parser.add_argument("--anchor_path", type=str, default='./output/movie_tagging/Anchor_PEFT', help="resume lora from checkpoint")
-    parser.add_argument("--anchor_idx_path", type=str, default='./anchor_selection/most_active/anchor_user_idx.pt', help="resume lora from checkpoint")
+    parser.add_argument("--anchor_path", type=str, default='./output/scholarly_title/Anchor_PEFT/LoRA', help="resume lora from checkpoint")
+    parser.add_argument("--anchor_idx_path", type=str, default='./anchor_selection/scholarly_title/anchor_user_idx.pt', help="resume lora from checkpoint")
 
     parser.add_argument("--num_workers", default=10, type=int)
 
@@ -160,7 +160,7 @@ def get_args_parser():
     parser.add_argument("--temperature", type=float, default=0.1, help="temperature")
     parser.add_argument("--max_gen_len", type=int, default=10, help="top_p")
 
-    parser.add_argument("--k_list", type=list, default=[1,2,4], help="top_p")
+    parser.add_argument("--k_list", type=list, default=[1], help="top_p")
     parser.add_argument('--infer', default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument("--recent_k", type=int, default=2000, help="top_p")
     parser.add_argument('--gate_reset', default=False, action=argparse.BooleanOptionalAction)
@@ -195,20 +195,25 @@ def process_train_data(user, k_list=[1,2,4]):
         extract_article = extract_news_headline
         format_flag = True
     elif args.task_name == "product_rating":
-        extract_article = extrat_product_review
+        extract_article = extract_product_review
         format_flag = True
     elif args.task_name == "scholarly_title":
         extract_article = extract_scholarly_title
         format_flag = True
     elif args.task_name == "tweet_paraphrase":
-        extract_article = extrat_tweet_paraphrasing
+        extract_article = extract_tweet_paraphrasing
 
     user_profile = all_profile[str(user['user_id'])]
 
     # for k in k_list:
     for idx, q in enumerate(user['profile'][-args.recent_k:]):
         for key, value in q.items():
-            q[key] = get_first_k_tokens(q[key], 768)
+            if isinstance(value, str):
+                q[key] = get_first_k_tokens(q[key], 768)
+            else:
+                q[key] = str(q[key])
+            
+            # q[key] = get_first_k_tokens(q[key], 768)
 
         prompt = prompt_template[args.task_name]['OPPU_input'].format(**q)
         full_prompt = prompt_template[args.task_name]['OPPU_full'].format(**q)
@@ -220,7 +225,12 @@ def process_train_data(user, k_list=[1,2,4]):
 
             for p in visible_history_list:
                 for key, value in p.items():
-                    p[key] = get_first_k_tokens(p[key], 368)
+                    if isinstance(value, str):
+                        p[key] = get_first_k_tokens(p[key], 368)
+                    else:
+                        p[key] = str(p[key])
+
+                    # p[key] = get_first_k_tokens(p[key], 368)
 
 
             history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
@@ -248,7 +258,11 @@ def process_train_data(user, k_list=[1,2,4]):
 
     for q in user['profile'][-args.recent_k:]:
         for key, value in q.items():
-            q[key] = get_first_k_tokens(q[key], 768)
+            if isinstance(value, str):
+                q[key] = get_first_k_tokens(q[key], 768)
+            else:
+                q[key] = str(q[key])
+            # q[key] = get_first_k_tokens(q[key], 768)
 
         prompt = prompt_template[args.task_name]['OPPU_input'].format(**q)
         full_prompt = prompt_template[args.task_name]['OPPU_full'].format(**q)
@@ -308,6 +322,8 @@ def main(args):
 
     # for idx, user in tqdm(enumerate(all_user_data), total=len(all_user_data)):
     for idx in tqdm(range(len(anchor_idx))):
+        print("len(anchor_idx) =", len(anchor_idx))
+        print("len(all_user_data) =", len(all_user_data))
         idx_all_test = anchor_idx[idx]
         user = all_user_data[idx_all_test]
         
